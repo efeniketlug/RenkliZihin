@@ -1,3 +1,2 @@
-# flutterdonemsonuodev
-
-A new Flutter project.
+# RenkliZihin
+Flutter ile geliştirilmiş çocuk gelişimi uygulaması
