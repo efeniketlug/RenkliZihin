@@ -4,17 +4,29 @@ publish_to: 'none'
 version: 0.1.0
 
 environment:
-  sdk: ^3.9.2
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  webview_flutter: ^4.10.0
+
+  # --- Webview Paketleri (Senin eklediklerin) ---
+  webview_flutter: ^4.8.0
+  webview_flutter_android: ^3.16.0
+  webview_flutter_web: ^0.2.3
+
+  # --- Müzik Çalar Paketi (YENİ EKLENDİ) ---
+  audioplayers: ^5.2.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true
+
+  # --- Dosya Yolları (YENİ EKLENDİ) ---
+  # MP3 dosyasını buraya tanıtmazsan "File not found" hatası alırsın.
+  assets:
+    - assets/background_music.mp3

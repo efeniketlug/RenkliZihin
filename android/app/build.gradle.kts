@@ -25,7 +25,7 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         
-        minSdk = flutter.minSdkVersion  // BURAYI DEĞİŞTİRDİK (Eskisi: flutter.minSdkVersion idi)
+        minSdk = flutter.minSdkVersion  // <--- BURASI ÇOK ÖNEMLİ, 21 OLMAZSA ÇALIŞMAZ
         
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
