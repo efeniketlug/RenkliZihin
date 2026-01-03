@@ -1,7 +1,12 @@
-# GitHub istatistiklerinde bu klasörleri dilden sayma
-android/* linguist-vendored
-ios/* linguist-vendored
-web/* linguist-vendored
-linux/* linguist-vendored
-macos/* linguist-vendored
-windows/* linguist-vendored
+# Dart dosyalarını kesinlikle say
+*.dart linguist-detectable=true
+
+# Bu klasörleri istatistikten TAMAMEN çıkar
+android/** linguist-vendored
+ios/** linguist-vendored
+windows/** linguist-vendored
+linux/** linguist-vendored
+macos/** linguist-vendored
+web/** linguist-vendored
+build/** linguist-vendored
+test/** linguist-vendored
