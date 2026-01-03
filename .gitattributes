@@ -1,0 +1,7 @@
+# GitHub istatistiklerinde bu klasörleri dilden sayma
+android/* linguist-vendored
+ios/* linguist-vendored
+web/* linguist-vendored
+linux/* linguist-vendored
+macos/* linguist-vendored
+windows/* linguist-vendored
