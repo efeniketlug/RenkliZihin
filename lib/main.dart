@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -26,7 +28,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// -------------------- GİRİŞ EKRANI --------------------
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -76,30 +77,43 @@ class HomeScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 50),
+            const SizedBox(height: 40),
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const GameScreen()),
+                  MaterialPageRoute(builder: (context) => const GameScreen(isRandomStart: false)),
                 );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFFD700),
                 foregroundColor: Colors.deepPurple,
-                padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 22),
+                padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
                 elevation: 8,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
               ),
               child: const Text(
                 'MACERAYA BAŞLA',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
-                ),
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const GameScreen(isRandomStart: true)),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurpleAccent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                elevation: 8,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+              ),
+              icon: const Icon(Icons.casino, size: 28),
+              label: const Text(
+                'SÜRPRİZ OYUN',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -109,9 +123,9 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-// -------------------- OYUN EKRANI --------------------
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key});
+  final bool isRandomStart;
+  const GameScreen({super.key, required this.isRandomStart});
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -125,7 +139,11 @@ class _GameScreenState extends State<GameScreen> {
   bool _isLoading = true;
   bool _isCompleted = false;
 
-  // --- OYUN LİSTESİ ---
+  int _sessionGameCount = 1; 
+  bool _isBreakTime = false; 
+  int _breakCountdown = 10;  
+  Timer? _timer;             
+
   final List<String> _gameUrls = [
     'https://play2048.co/',
     'https://hextris.io/',
@@ -161,13 +179,25 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.isRandomStart) {
+      _currentIndex = Random().nextInt(_gameUrls.length);
+    } else {
+      _currentIndex = 0;
+    }
     _initializeWebView();
     _manageBackgroundMusic();
   }
 
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
   Future<void> _manageBackgroundMusic() async {
     try {
-      if (_isCompleted) {
+      if (_isBreakTime || _isCompleted) {
          if (_audioPlayer.state != PlayerState.playing) {
           await _audioPlayer.setReleaseMode(ReleaseMode.loop);
           await _audioPlayer.setVolume(0.2);
@@ -186,7 +216,7 @@ class _GameScreenState extends State<GameScreen> {
         }
       }
     } catch (e) {
-      debugPrint("Müzik hatası: $e");
+      debugPrint("Audio Error: $e");
     }
   }
 
@@ -194,6 +224,9 @@ class _GameScreenState extends State<GameScreen> {
     _controller = WebViewController();
     _controller.setJavaScriptMode(JavaScriptMode.unrestricted);
     _controller.setBackgroundColor(const Color(0xFFFFFFFF));
+    _controller.clearCache(); 
+    _controller.setUserAgent("Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.181 Mobile Safari/537.36");
+
     _controller.setNavigationDelegate(
       NavigationDelegate(
         onPageStarted: (String url) {
@@ -203,21 +236,58 @@ class _GameScreenState extends State<GameScreen> {
           if (mounted) setState(() => _isLoading = false);
         },
         onWebResourceError: (WebResourceError error) {
-          debugPrint('HATA: ${error.description}');
+          debugPrint('WebView Error: ${error.description}');
         },
       ),
     );
     _controller.loadRequest(Uri.parse(_gameUrls[_currentIndex]));
   }
 
-  void _nextGame() {
+  void _handleNextButton() {
+    _sessionGameCount++;
+    if (_sessionGameCount % 4 == 0) {
+      _startBreakTime(); 
+    } else {
+      _goToNextGame(); 
+    }
+  }
+
+  void _startBreakTime() {
     setState(() {
-      if (_currentIndex < _gameUrls.length - 1) {
-        _currentIndex++;
+      _isBreakTime = true;
+      _breakCountdown = 10; 
+    });
+    _manageBackgroundMusic();
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_breakCountdown > 0) {
+            _breakCountdown--;
+          } else {
+            _timer?.cancel();
+            _isBreakTime = false;
+            _goToNextGame(); 
+          }
+        });
+      }
+    });
+  }
+
+  void _goToNextGame() {
+    setState(() {
+      if (widget.isRandomStart) {
+        _currentIndex = Random().nextInt(_gameUrls.length);
         _isLoading = true;
         _controller.loadRequest(Uri.parse(_gameUrls[_currentIndex]));
       } else {
-        _isCompleted = true;
+        if (_currentIndex < _gameUrls.length - 1) {
+          _currentIndex++;
+          _isLoading = true;
+          _controller.loadRequest(Uri.parse(_gameUrls[_currentIndex]));
+        } else {
+          _isCompleted = true; 
+        }
       }
       _manageBackgroundMusic();
     });
@@ -226,6 +296,7 @@ class _GameScreenState extends State<GameScreen> {
   void _restartGame() {
     setState(() {
       _currentIndex = 0;
+      _sessionGameCount = 1; 
       _isCompleted = false;
       _isLoading = true;
       _manageBackgroundMusic();
@@ -234,43 +305,44 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   @override
-  void dispose() {
-    _audioPlayer.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    if (_isBreakTime) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF4DB6AC), 
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.visibility_off_outlined, size: 100, color: Colors.white),
+              const SizedBox(height: 30),
+              const Text("Gözlerini Dinlendir", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
+              const SizedBox(height: 10),
+              const Text("Uzağa bak veya gözlerini kapat.", style: TextStyle(fontSize: 18, color: Colors.white70)),
+              const SizedBox(height: 50),
+              Text("$_breakCountdown", style: const TextStyle(fontSize: 60, fontWeight: FontWeight.bold, color: Colors.white)),
+              const SizedBox(height: 20),
+              const Text("Saniye kaldı...", style: TextStyle(color: Colors.white70)),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (_isCompleted) {
       return Scaffold(
         body: Container(
           width: double.infinity,
           decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF8E2DE2), Color(0xFF4A00E0)],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
+            gradient: LinearGradient(colors: [Color(0xFF8E2DE2), Color(0xFF4A00E0)], begin: Alignment.topCenter, end: Alignment.bottomCenter),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(Icons.emoji_events_rounded, size: 100, color: Colors.amber),
               const SizedBox(height: 20),
-              const Text(
-                "TEBRİKLER!",
-                style: TextStyle(
-                  fontSize: 40, 
-                  fontWeight: FontWeight.w900, 
-                  color: Colors.white,
-                  letterSpacing: 2
-                ),
-              ),
+              const Text("TEBRİKLER!", style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: Colors.white)),
               const SizedBox(height: 10),
-              const Text(
-                "Tüm oyunları tamamladın.",
-                style: TextStyle(fontSize: 18, color: Colors.white70),
-              ),
+              const Text("Tüm oyunları tamamladın.", style: TextStyle(fontSize: 18, color: Colors.white70)),
               const SizedBox(height: 50),
               ElevatedButton(
                 onPressed: _restartGame,
@@ -278,14 +350,8 @@ class _GameScreenState extends State<GameScreen> {
                   backgroundColor: Colors.amber,
                   foregroundColor: Colors.deepPurple,
                   padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                  elevation: 10,
                 ),
-                child: const Text(
-                  "EĞLENCEYİ TEKRARLAMAK\nİÇİN TIKLA",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
+                child: const Text("TEKRAR OYNA", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -294,68 +360,71 @@ class _GameScreenState extends State<GameScreen> {
     }
 
     double progressValue = (_currentIndex + 1) / _gameUrls.length;
-    Color currentColor = _levelColors[_currentIndex % _levelColors.length];
+    Color appBarColor = _levelColors[_currentIndex % _levelColors.length];
+    Color buttonColor = _levelColors[(_currentIndex + 10) % _levelColors.length];
 
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: appBarColor,
+        title: Text(
+          'OYUN ${_currentIndex + 1}',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.home_rounded, color: Colors.white),
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+            onPressed: () {
+              _controller.reload();
+            },
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
-            // Üst Panel
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.fromLTRB(16, 5, 16, 10),
               color: Colors.grey.shade50,
               child: Column(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                   Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: currentColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        // BURADA "OYUN X" YAZIYOR
-                        child: Text(
-                          'OYUN ${_currentIndex + 1}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: currentColor,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
                       Text(
                         '%${(progressValue * 100).toInt()}',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: Colors.grey.shade600,
+                          fontSize: 12
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: LinearProgressIndicator(
                       value: progressValue,
-                      minHeight: 12,
+                      minHeight: 8,
                       backgroundColor: Colors.grey.shade300,
-                      color: currentColor,
+                      color: appBarColor,
                     ),
                   ),
                 ],
               ),
             ),
-
-            // --- DEĞİŞİKLİK: ANİMASYONU KALDIRDIM ---
-            // Artık düz Stack kullanıyoruz, hata vermez.
             Expanded(
               child: Stack(
                 children: [
                   WebViewWidget(controller: _controller),
-                  
                   if (_isLoading)
                     Container(
                       color: Colors.white,
@@ -363,19 +432,9 @@ class _GameScreenState extends State<GameScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            CircularProgressIndicator(
-                              color: currentColor,
-                              strokeWidth: 4,
-                            ),
+                            CircularProgressIndicator(color: appBarColor, strokeWidth: 4),
                             const SizedBox(height: 20),
-                            Text(
-                              "Oyun Hazırlanıyor...",
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: currentColor,
-                              ),
-                            ),
+                            Text("Oyun Hazırlanıyor...", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: appBarColor)),
                           ],
                         ),
                       ),
@@ -383,42 +442,32 @@ class _GameScreenState extends State<GameScreen> {
                 ],
               ),
             ),
-
-            // Alt Panel (Buton)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    offset: const Offset(0, -4),
-                    blurRadius: 10,
-                  ),
-                ],
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), offset: const Offset(0, -4), blurRadius: 10)],
               ),
               child: SizedBox(
                 width: double.infinity,
                 height: 60,
                 child: ElevatedButton(
-                  onPressed: _nextGame,
+                  onPressed: _handleNextButton,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
+                    backgroundColor: buttonColor,
                     foregroundColor: Colors.white,
                     elevation: 5,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'SONRAKİ OYUN',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        widget.isRandomStart ? 'BAŞKA OYUN' : 'SONRAKİ OYUN',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                       ),
-                      SizedBox(width: 10),
-                      Icon(Icons.arrow_forward_rounded, size: 28),
+                      const SizedBox(width: 10),
+                      Icon(widget.isRandomStart ? Icons.casino : Icons.arrow_forward_rounded, size: 28),
                     ],
                   ),
                 ),
